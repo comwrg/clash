@@ -4,12 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"net"
+	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/Dreamacro/clash/common/picker"
 	C "github.com/Dreamacro/clash/constant"
+)
+
+type Prefer int32
+
+const (
+	Fast Prefer = iota
+	Stable
 )
 
 type URLTest struct {
@@ -20,6 +29,7 @@ type URLTest struct {
 	interval time.Duration
 	done     chan struct{}
 	once     int32
+	prefer   Prefer
 }
 
 type URLTestOption struct {
@@ -27,6 +37,7 @@ type URLTestOption struct {
 	Proxies  []string `proxy:"proxies"`
 	URL      string   `proxy:"url"`
 	Interval int      `proxy:"interval"`
+	Prefer   string   `proxy:"prefer,omitempty"`
 }
 
 func (u *URLTest) Now() string {
@@ -86,14 +97,35 @@ Loop:
 }
 
 func (u *URLTest) fallback() {
-	fast := u.proxies[0]
-	min := fast.LastDelay()
-	for _, proxy := range u.proxies[1:] {
+	const Inf uint16 = 0xffff
+	fast := u.fast
+	min := Inf
+	for _, proxy := range u.proxies {
 		if !proxy.Alive() {
 			continue
 		}
 
-		delay := proxy.LastDelay()
+		delay := Inf
+		switch u.prefer {
+		case Fast:
+			delay = proxy.LastDelay()
+		case Stable:
+			// calculate variance
+			sum := 0.0
+			n := len(proxy.DelayHistory())
+			for _, e := range proxy.DelayHistory() {
+				sum += float64(e.Delay)
+			}
+			mean := sum / float64(n)
+
+			sum = 0.0
+			for _, e := range proxy.DelayHistory() {
+				sum += math.Pow(float64(e.Delay)-mean, 2)
+			}
+
+			delay = uint16(sum / float64(n))
+		}
+
 		if delay < min {
 			fast = proxy
 			min = delay
@@ -139,6 +171,19 @@ func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {
 	}
 
 	interval := time.Duration(option.Interval) * time.Second
+
+	var prefer Prefer
+	switch strings.ToLower(option.Prefer) {
+	case "":
+		prefer = Fast
+	case "fast":
+		prefer = Fast
+	case "stable":
+		prefer = Stable
+	default:
+		return nil, errors.New("Do not support prefer optional: " + option.Prefer)
+	}
+
 	urlTest := &URLTest{
 		Base: &Base{
 			name: option.Name,
@@ -150,6 +195,7 @@ func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {
 		interval: interval,
 		done:     make(chan struct{}),
 		once:     0,
+		prefer:   prefer,
 	}
 	go urlTest.loop()
 	return urlTest, nil
