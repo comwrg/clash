@@ -113,6 +113,9 @@ func (u *URLTest) fallback() {
 			// calculate variance
 			sum := 0.0
 			n := len(proxy.DelayHistory())
+			if n == 0 {
+				continue
+			}
 			for _, e := range proxy.DelayHistory() {
 				sum += float64(e.Delay)
 			}
