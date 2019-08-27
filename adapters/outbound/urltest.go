@@ -99,6 +99,9 @@ Loop:
 func (u *URLTest) fallback() {
 	Inf := 0xffff
 	fast := u.fast
+	if fast == nil {
+		fast = u.proxies[0]
+	}
 	prefer := u.prefer
 
 	switch len(fast.DelayHistory()) {
