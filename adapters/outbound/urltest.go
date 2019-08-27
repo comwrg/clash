@@ -97,41 +97,62 @@ Loop:
 }
 
 func (u *URLTest) fallback() {
-	const Inf uint16 = 0xffff
+	Inf := 0xffff
 	fast := u.fast
-	min := Inf
+	prefer := u.prefer
+
+	switch len(fast.DelayHistory()) {
+	case 0:
+		return
+	case 1:
+		// only one history, `stable` is no meaning
+		prefer = Fast
+	}
+
+	minDelay := Inf
+	minInvalid := Inf
 	for _, proxy := range u.proxies {
 		if !proxy.Alive() {
 			continue
 		}
 
-		delay := Inf
-		switch u.prefer {
+		switch prefer {
 		case Fast:
-			delay = proxy.LastDelay()
+			delay := int(proxy.LastDelay())
+			if delay < minDelay {
+				fast = proxy
+				minDelay = delay
+			}
 		case Stable:
 			// calculate variance
 			sum := 0.0
-			n := len(proxy.DelayHistory())
-			if n == 0 {
-				continue
-			}
+			invalidNum := 0
 			for _, e := range proxy.DelayHistory() {
-				sum += float64(e.Delay)
+				if e.Delay == 0 {
+					invalidNum++
+				} else {
+					sum += float64(e.Delay)
+				}
 			}
-			mean := sum / float64(n)
+			totalNum := len(proxy.DelayHistory())
+			validNum := totalNum - invalidNum
+			mean := sum / float64(validNum)
 
 			sum = 0.0
 			for _, e := range proxy.DelayHistory() {
+				if e.Delay == 0 {
+					continue
+				}
 				sum += math.Pow(float64(e.Delay)-mean, 2)
 			}
 
-			delay = uint16(sum / float64(n))
-		}
+			delay := int(sum / float64(validNum))
 
-		if delay < min {
-			fast = proxy
-			min = delay
+			if invalidNum <= minInvalid && delay < minDelay {
+				fast = proxy
+				minInvalid = invalidNum
+				minDelay = delay
+			}
 		}
 	}
 	u.fast = fast
