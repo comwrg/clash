@@ -14,12 +14,12 @@ import (
 
 type URLTest struct {
 	*Base
-	proxies  []C.Proxy
-	rawURL   string
-	fast     C.Proxy
-	interval time.Duration
-	done     chan struct{}
-	once     int32
+	proxies       []C.Proxy
+	rawURL        string
+	fast          C.Proxy
+	interval      time.Duration
+	done          chan struct{}
+	speedTestOnce int32
 }
 
 type URLTestOption struct {
@@ -103,10 +103,10 @@ func (u *URLTest) fallback() {
 }
 
 func (u *URLTest) speedTest() {
-	if !atomic.CompareAndSwapInt32(&u.once, 0, 1) {
+	if !atomic.CompareAndSwapInt32(&u.speedTestOnce, 0, 1) {
 		return
 	}
-	defer atomic.StoreInt32(&u.once, 0)
+	defer atomic.StoreInt32(&u.speedTestOnce, 0)
 
 	picker, ctx, cancel := picker.WithTimeout(context.Background(), defaultURLTestTimeout)
 	defer cancel()
@@ -142,12 +142,12 @@ func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {
 			name: option.Name,
 			tp:   C.URLTest,
 		},
-		proxies:  proxies[:],
-		rawURL:   option.URL,
-		fast:     proxies[0],
-		interval: interval,
-		done:     make(chan struct{}),
-		once:     0,
+		proxies:       proxies[:],
+		rawURL:        option.URL,
+		fast:          proxies[0],
+		interval:      interval,
+		done:          make(chan struct{}),
+		speedTestOnce: 0,
 	}
 	go urlTest.loop()
 	return urlTest, nil
