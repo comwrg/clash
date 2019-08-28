@@ -20,6 +20,7 @@ type URLTest struct {
 	interval      time.Duration
 	done          chan struct{}
 	speedTestOnce int32
+	fallbackOnce  int32
 }
 
 type URLTestOption struct {
@@ -86,6 +87,11 @@ Loop:
 }
 
 func (u *URLTest) fallback() {
+	if !atomic.CompareAndSwapInt32(&u.fallbackOnce, 0, 1) {
+		return
+	}
+	defer atomic.StoreInt32(&u.fallbackOnce, 0)
+
 	fast := u.proxies[0]
 	min := fast.LastDelay()
 	for _, proxy := range u.proxies[1:] {
@@ -148,6 +154,7 @@ func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {
 		interval:      interval,
 		done:          make(chan struct{}),
 		speedTestOnce: 0,
+		fallbackOnce:  0,
 	}
 	go urlTest.loop()
 	return urlTest, nil
