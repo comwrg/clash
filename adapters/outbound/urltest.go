@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -34,14 +35,22 @@ func (u *URLTest) Now() string {
 	return u.fast.Name()
 }
 
-func (u *URLTest) Dial(metadata *C.Metadata) (C.Conn, error) {
-	a, err := u.fast.Dial(metadata)
-	if err != nil {
+func (u *URLTest) Dial(metadata *C.Metadata) (c C.Conn, err error) {
+	// retry to choice new available proxy if Dial fails because current proxy unavailable
+	for i := 0; i < 3; i++ {
+		// if `fallback` in process, `u.fast` is definitely unavailable
+		// so we need wait for `u.fallback()` finished
+		for atomic.LoadInt32(&u.fallbackOnce) != 0 {
+			runtime.Gosched()
+		}
+		c, err = u.fast.Dial(metadata)
+		if err == nil {
+			c.AppendToChains(u)
+			return
+		}
 		u.fallback()
-	} else {
-		a.AppendToChains(u)
 	}
-	return a, err
+	return
 }
 
 func (u *URLTest) DialUDP(metadata *C.Metadata) (C.PacketConn, net.Addr, error) {
