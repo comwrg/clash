@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -15,13 +14,12 @@ import (
 
 type URLTest struct {
 	*Base
-	proxies       []C.Proxy
-	rawURL        string
-	fast          C.Proxy
-	interval      time.Duration
-	done          chan struct{}
-	speedTestOnce int32
-	fallbackOnce  int32
+	proxies  []C.Proxy
+	rawURL   string
+	fast     C.Proxy
+	interval time.Duration
+	done     chan struct{}
+	once     int32
 }
 
 type URLTestOption struct {
@@ -35,22 +33,14 @@ func (u *URLTest) Now() string {
 	return u.fast.Name()
 }
 
-func (u *URLTest) Dial(metadata *C.Metadata) (c C.Conn, err error) {
-	// retry to choice new available proxy if Dial fails because current proxy unavailable
-	for i := 0; i < 3; i++ {
-		// if `fallback` in process, `u.fast` is definitely unavailable
-		// so we need wait for `u.fallback()` finished
-		for atomic.LoadInt32(&u.fallbackOnce) != 0 {
-			runtime.Gosched()
-		}
-		c, err = u.fast.Dial(metadata)
-		if err == nil {
-			c.AppendToChains(u)
-			return
-		}
+func (u *URLTest) Dial(metadata *C.Metadata) (C.Conn, error) {
+	a, err := u.fast.Dial(metadata)
+	if err != nil {
 		u.fallback()
+	} else {
+		a.AppendToChains(u)
 	}
-	return
+	return a, err
 }
 
 func (u *URLTest) DialUDP(metadata *C.Metadata) (C.PacketConn, net.Addr, error) {
@@ -96,11 +86,6 @@ Loop:
 }
 
 func (u *URLTest) fallback() {
-	if !atomic.CompareAndSwapInt32(&u.fallbackOnce, 0, 1) {
-		return
-	}
-	defer atomic.StoreInt32(&u.fallbackOnce, 0)
-
 	fast := u.proxies[0]
 	min := fast.LastDelay()
 	for _, proxy := range u.proxies[1:] {
@@ -118,10 +103,10 @@ func (u *URLTest) fallback() {
 }
 
 func (u *URLTest) speedTest() {
-	if !atomic.CompareAndSwapInt32(&u.speedTestOnce, 0, 1) {
+	if !atomic.CompareAndSwapInt32(&u.once, 0, 1) {
 		return
 	}
-	defer atomic.StoreInt32(&u.speedTestOnce, 0)
+	defer atomic.StoreInt32(&u.once, 0)
 
 	picker, ctx, cancel := picker.WithTimeout(context.Background(), defaultURLTestTimeout)
 	defer cancel()
@@ -157,13 +142,12 @@ func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {
 			name: option.Name,
 			tp:   C.URLTest,
 		},
-		proxies:       proxies[:],
-		rawURL:        option.URL,
-		fast:          proxies[0],
-		interval:      interval,
-		done:          make(chan struct{}),
-		speedTestOnce: 0,
-		fallbackOnce:  0,
+		proxies:  proxies[:],
+		rawURL:   option.URL,
+		fast:     proxies[0],
+		interval: interval,
+		done:     make(chan struct{}),
+		once:     0,
 	}
 	go urlTest.loop()
 	return urlTest, nil
