@@ -131,6 +131,7 @@ func dialTimeout(network, address string, timeout time.Duration) (net.Conn, erro
 			ip, err = dns.ResolveIPv4(host)
 		}
 		if err != nil {
+			results <- dialResult{Conn: nil, error: err, ipv6: ipv6, done: true}
 			return
 		}
 
