@@ -105,7 +105,7 @@ func dialTimeout(network, address string, timeout time.Duration) (net.Conn, erro
 		return nil, err
 	}
 
-	dialer := net.Dialer{Timeout: timeout}
+	dialer := net.Dialer{}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
