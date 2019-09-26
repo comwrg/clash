@@ -10,6 +10,7 @@ import (
 // for groups of goroutines working on subtasks of a common task.
 // Inspired by errGroup
 type Picker struct {
+	ctx    context.Context
 	cancel func()
 
 	wg sync.WaitGroup
@@ -20,8 +21,9 @@ type Picker struct {
 	firstDone chan struct{}
 }
 
-func NewPicker(cancel func()) *Picker {
+func newPicker(ctx context.Context, cancel func()) *Picker {
 	return &Picker{
+		ctx:       ctx,
 		cancel:    cancel,
 		firstDone: make(chan struct{}, 1),
 	}
@@ -31,14 +33,14 @@ func NewPicker(cancel func()) *Picker {
 // and cancel when first element return.
 func WithContext(ctx context.Context) (*Picker, context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
-	return NewPicker(cancel), ctx
+	return newPicker(ctx, cancel), ctx
 }
 
 // WithTimeout returns a new Picker and an associated Context derived from ctx with timeout,
 // but it doesn't cancel when first element return.
 func WithTimeout(ctx context.Context, timeout time.Duration) (*Picker, context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	return NewPicker(nil), ctx, cancel
+	return newPicker(ctx, nil), ctx, cancel
 }
 
 // Wait blocks until all function calls from the Go method have returned,
@@ -56,6 +58,8 @@ func (p *Picker) WaitFirstResult() interface{} {
 	select {
 	case <-p.firstDone:
 		return p.result
+	case <-p.ctx.Done():
+		return p.result
 	}
 }
 
@@ -66,9 +70,6 @@ func (p *Picker) Go(f func() (interface{}, error)) {
 
 	go func() {
 		defer p.wg.Done()
-		defer p.once.Do(func() {
-			close(p.firstDone)
-		})
 
 		if ret, err := f(); err == nil {
 			p.once.Do(func() {
