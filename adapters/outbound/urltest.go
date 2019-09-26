@@ -123,10 +123,12 @@ func (u *URLTest) speedTest() {
 		})
 	}
 
-	fast := picker.Wait()
+	fast := picker.WaitFirstResult()
 	if fast != nil {
 		u.fast = fast.(C.Proxy)
 	}
+
+	picker.Wait()
 }
 
 func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {

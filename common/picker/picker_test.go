@@ -40,3 +40,45 @@ func TestPicker_Timeout(t *testing.T) {
 		t.Error("should recv nil")
 	}
 }
+
+func TestPicker_WaitFirstResult(t *testing.T) {
+	picker, ctx, cancel := WithTimeout(context.Background(), time.Millisecond*30)
+	defer cancel()
+	picker.Go(sleepAndSend(ctx, 50, 2))
+	picker.Go(sleepAndSend(ctx, 10, 1))
+
+	start := time.Now()
+
+	number := picker.WaitFirstResult()
+	if number == nil || number.(int) != 1 {
+		t.Error("should recv 1", number)
+	}
+
+	picker.Wait()
+
+	if time.Since(start) > time.Millisecond*40 {
+		t.Error("should return immediately", number)
+	}
+	if time.Since(start) < time.Millisecond*20 {
+		t.Error("should return later", number)
+	}
+}
+
+func TestPicker_WaitFirstResult_Timeout(t *testing.T) {
+	picker, ctx, cancel := WithTimeout(context.Background(), time.Millisecond*10)
+	defer cancel()
+	picker.Go(sleepAndSend(ctx, 300, 1))
+
+	start := time.Now()
+
+	number := picker.WaitFirstResult()
+	if number != nil {
+		t.Error("should recv null", number)
+	}
+
+	picker.Wait()
+
+	if time.Since(start) > time.Millisecond*20 {
+		t.Error("should return immediately", number)
+	}
+}
