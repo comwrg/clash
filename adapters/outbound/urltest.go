@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -112,6 +113,7 @@ func (u *URLTest) speedTest() {
 
 	picker, ctx, cancel := picker.WithTimeout(context.Background(), defaultURLTestTimeout)
 	defer cancel()
+	var once sync.Once
 	for _, p := range u.proxies {
 		proxy := p
 		picker.Go(func() (interface{}, error) {
@@ -119,14 +121,14 @@ func (u *URLTest) speedTest() {
 			if err != nil {
 				return nil, err
 			}
+			once.Do(func() {
+				u.fast = proxy
+			})
 			return proxy, nil
 		})
 	}
 
-	fast := picker.Wait()
-	if fast != nil {
-		u.fast = fast.(C.Proxy)
-	}
+	picker.Wait()
 }
 
 func NewURLTest(option URLTestOption, proxies []C.Proxy) (*URLTest, error) {
