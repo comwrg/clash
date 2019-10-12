@@ -36,11 +36,16 @@ func WithContext(ctx context.Context) (*Picker, context.Context) {
 	return newPicker(ctx, cancel), ctx
 }
 
-// WithTimeout returns a new Picker and an associated Context derived from ctx with timeout,
-// but it doesn't cancel when first element return.
-func WithTimeout(ctx context.Context, timeout time.Duration) (*Picker, context.Context, context.CancelFunc) {
+// WithTimeout returns a new Picker and an associated Context derived from ctx with timeout.
+func WithTimeout(ctx context.Context, timeout time.Duration) (*Picker, context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
-	return newPicker(ctx, nil), ctx, cancel
+	return newPicker(ctx, cancel), ctx
+}
+
+// WithoutAutoCancel returns a new Picker and an associated Context derived from ctx,
+// but it wouldn't cancel context when the first element return.
+func WithoutAutoCancel(ctx context.Context) *Picker {
+	return newPicker(ctx, nil)
 }
 
 // Wait blocks until all function calls from the Go method have returned,
@@ -53,8 +58,8 @@ func (p *Picker) Wait() interface{} {
 	return p.result
 }
 
-// Wait blocks until the first result return, if timeout will return nil.
-func (p *Picker) WaitFirstResult() interface{} {
+// WaitWithoutCancel blocks until the first result return, if timeout will return nil.
+func (p *Picker) WaitWithoutCancel() interface{} {
 	select {
 	case <-p.firstDone:
 		return p.result
