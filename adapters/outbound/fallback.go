@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/Dreamacro/clash/common/picker"
 	"net"
 	"sync/atomic"
 	"time"
 
+	"github.com/Dreamacro/clash/common/picker"
 	C "github.com/Dreamacro/clash/constant"
 )
 
