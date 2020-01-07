@@ -100,6 +100,9 @@ type Proxy struct {
 	C.ProxyAdapter
 	history *queue.Queue
 	alive   bool
+
+	total    float64
+	survival float64
 }
 
 func (p *Proxy) Alive() bool {
@@ -147,6 +150,10 @@ func (p *Proxy) LastDelay() (delay uint16) {
 	return history.Delay
 }
 
+func (p *Proxy) SurvivalRate() float64 {
+	return p.survival / p.total
+}
+
 func (p *Proxy) MarshalJSON() ([]byte, error) {
 	inner, err := p.ProxyAdapter.MarshalJSON()
 	if err != nil {
@@ -167,12 +174,15 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (t uint16, err error) {
 		record := C.DelayHistory{Time: time.Now()}
 		if err == nil {
 			record.Delay = t
+			p.survival += 1
 		}
 		p.history.Put(record)
 		if p.history.Len() > 10 {
 			p.history.Pop()
 		}
 	}()
+
+	p.total += 1
 
 	addr, err := urlToMetadata(url)
 	if err != nil {
@@ -219,5 +229,5 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (t uint16, err error) {
 }
 
 func NewProxy(adapter C.ProxyAdapter) *Proxy {
-	return &Proxy{adapter, queue.New(10), true}
+	return &Proxy{adapter, queue.New(10), true, 1, 0}
 }

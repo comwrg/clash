@@ -83,6 +83,7 @@ type Proxy interface {
 	Dial(metadata *Metadata) (Conn, error)
 	LastDelay() uint16
 	URLTest(ctx context.Context, url string) (uint16, error)
+	SurvivalRate() float64
 }
 
 // AdapterType is enum of adapter type

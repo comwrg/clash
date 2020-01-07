@@ -50,16 +50,19 @@ func (u *URLTest) fast() C.Proxy {
 	elm, _, _ := u.fastSingle.Do(func() (interface{}, error) {
 		proxies := u.proxies()
 		fast := proxies[0]
-		min := fast.LastDelay()
+		maxRate := fast.SurvivalRate()
+		minDelay := fast.LastDelay()
 		for _, proxy := range proxies[1:] {
 			if !proxy.Alive() {
 				continue
 			}
 
+			rate := proxy.SurvivalRate()
 			delay := proxy.LastDelay()
-			if delay < min {
+			if rate > maxRate || (rate == maxRate && delay < minDelay) {
+				maxRate = rate
+				minDelay = delay
 				fast = proxy
-				min = delay
 			}
 		}
 		return fast, nil
