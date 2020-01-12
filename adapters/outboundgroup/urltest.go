@@ -48,7 +48,7 @@ func (u *URLTest) proxies() []C.Proxy {
 }
 
 func (u *URLTest) fast() C.Proxy {
-	elm, _, _ := u.fastSingle.Do(func() (interface{}, error) {
+	fn := func() (interface{}, error) {
 		proxies := u.proxies()
 		fast := proxies[0]
 		min := fast.LastDelay()
@@ -64,7 +64,12 @@ func (u *URLTest) fast() C.Proxy {
 			}
 		}
 		return fast, nil
-	})
+	}
+
+	elm, _, _ := u.fastSingle.Do(fn)
+	if !elm.(C.Proxy).Alive() {
+		elm, _ = fn()
+	}
 
 	return elm.(C.Proxy)
 }
