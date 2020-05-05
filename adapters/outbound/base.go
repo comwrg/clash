@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Dreamacro/clash/common/queue"
+	"github.com/Dreamacro/clash/component/resolver"
 	C "github.com/Dreamacro/clash/constant"
 )
 
@@ -173,6 +174,13 @@ func (p *Proxy) URLTest(ctx context.Context, url string) (t uint16, err error) {
 			p.history.Pop()
 		}
 	}()
+
+	// cache dns record before timing in order to ignore the impact of DNS time on the final results
+	host, _, err := net.SplitHostPort(p.Addr())
+	if err != nil {
+		return
+	}
+	resolver.ResolveIPv4(host)
 
 	addr, err := urlToMetadata(url)
 	if err != nil {
