@@ -174,7 +174,7 @@ func (r *Resolver) batchExchange(clients []dnsClient, m *D.Msg) (msg *D.Msg, err
 			m, err := r.ExchangeContext(ctx, m)
 			if err != nil {
 				return nil, err
-			} else if m.Rcode == D.RcodeServerFailure || m.Rcode == D.RcodeRefused {
+			} else if m.Rcode == D.RcodeServerFailure || m.Rcode == D.RcodeRefused || len(m.Answer) == 0 {
 				return nil, errors.New("server failure")
 			}
 			return m, nil
